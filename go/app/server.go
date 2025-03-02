@@ -304,7 +304,7 @@ func (s *Handlers) GetImage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// when the image is not found, it returns the default image without an error.
-		slog.Debug("image not found", "filename", imgPath)
+		slog.Info("image not found", "filename", imgPath)
 		imgPath = filepath.Join(s.imgDirPath, "default.jpg")
 	}
 
