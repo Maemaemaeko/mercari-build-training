@@ -8,6 +8,8 @@ import (
 	"testing"
 	"encoding/json"
 	"errors"
+	"database/sql"
+	"os"
 
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
@@ -207,120 +209,150 @@ func TestAddItem(t *testing.T) {
 }
 
 // STEP 6-4: uncomment this test
-// func TestAddItemE2e(t *testing.T) {
-// 	if testing.Short() {
-// 		t.Skip("skipping e2e test")
-// 	}
+func TestAddItemE2e(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test")
+	}
 
-// 	db, closers, err := setupDB(t)
-// 	if err != nil {
-// 		t.Fatalf("failed to set up database: %v", err)
-// 	}
-// 	t.Cleanup(func() {
-// 		for _, c := range closers {
-// 			c()
-// 		}
-// 	})
+	db, closers, err := setupDB(t)
+	if err != nil {
+		t.Fatalf("failed to set up database: %v", err)
+	}
+	t.Cleanup(func() {
+		for _, c := range closers {
+			c()
+		}
+	})
 
-// 	type wants struct {
-// 		code int
-// 	}
-// 	cases := map[string]struct {
-// 		args map[string]string
-// 		wants
-// 	}{
-// 		"ok: correctly inserted": {
-// 			args: map[string]string{
-// 				"name":     "used iPhone 16e",
-// 				"category": "phone",
-// 			},
-// 			wants: wants{
-// 				code: http.StatusOK,
-// 			},
-// 		},
-// 		"ng: failed to insert": {
-// 			args: map[string]string{
-// 				"name":     "",
-// 				"category": "phone",
-// 			},
-// 			wants: wants{
-// 				code: http.StatusBadRequest,
-// 			},
-// 		},
-// 	}
+	type wants struct {
+		code int
+	}
+	cases := map[string]struct {
+		args map[string]string
+		wants
+	}{
+		"ok: correctly inserted": {
+			args: map[string]string{
+				"name":     "used iPhone 16e",
+				"category": "phone",
+			},
+			wants: wants{
+				code: http.StatusOK,
+			},
+		},
+		"ng: failed to insert": {
+			args: map[string]string{
+				"name":     "",
+				"category": "phone",
+			},
+			wants: wants{
+				code: http.StatusBadRequest,
+			},
+		},
+	}
 
-// 	for name, tt := range cases {
-// 		t.Run(name, func(t *testing.T) {
-// 			h := &Handlers{itemRepo: &itemRepository{db: db}}
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := &Handlers{itemRepo: &itemRepository{db: db}}
 
-// 			values := url.Values{}
-// 			for k, v := range tt.args {
-// 				values.Set(k, v)
-// 			}
-// 			req := httptest.NewRequest("POST", "/items", strings.NewReader(values.Encode()))
-// 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			values := url.Values{}
+			for k, v := range tt.args {
+				values.Set(k, v)
+			}
+			req := httptest.NewRequest("POST", "/items", strings.NewReader(values.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-// 			rr := httptest.NewRecorder()
-// 			h.AddItem(rr, req)
+			rr := httptest.NewRecorder()
+			h.AddItem(rr, req)
 
-// 			// check response
-// 			if tt.wants.code != rr.Code {
-// 				t.Errorf("expected status code %d, got %d", tt.wants.code, rr.Code)
-// 			}
-// 			if tt.wants.code >= 400 {
-// 				return
-// 			}
-// 			for _, v := range tt.args {
-// 				if !strings.Contains(rr.Body.String(), v) {
-// 					t.Errorf("response body does not contain %s, got: %s", v, rr.Body.String())
-// 				}
-// 			}
+			// check response
+			if tt.wants.code != rr.Code {
+				t.Errorf("expected status code %d, got %d", tt.wants.code, rr.Code)
+			}
+			if tt.wants.code >= 400 {
+				return
+			}
+			for _, v := range tt.args {
+				if !strings.Contains(rr.Body.String(), v) {
+					t.Errorf("response body does not contain %s, got: %s", v, rr.Body.String())
+				}
+			}
 
-// 			// STEP 6-4: check inserted data
-// 		})
-// 	}
-// }
+			// STEP 6-4: check inserted data
+			// check the inserted data
+			tx, err := db.Begin()
 
-// func setupDB(t *testing.T) (db *sql.DB, closers []func(), e error) {
-// 	t.Helper()
+			// データ取得用の `Item` 構造体
+			var item Item
+			err = tx.QueryRow(`
+				SELECT items.id, items.name, categories.name AS category, items.image_name
+				FROM items 
+				INNER JOIN categories ON items.category_id = categories.id
+				ORDER BY items.id DESC
+				LIMIT 1
+			`).Scan(&item.ID, &item.Name, &item.Category, &item.ImagePath)
+			if err != nil {
+				t.Fatalf("failed to query inserted item: %v", err)
+			}
+			if item.Name != tt.args["name"] || item.Category != tt.args["category"] {
+				t.Errorf("expected item (name: %s, category: %s), got (name: %s, category: %s)", tt.args["name"], tt.args["category"], item.Name, item.Category)
+			}
+			tx.Commit()
 
-// 	defer func() {
-// 		if e != nil {
-// 			for _, c := range closers {
-// 				c()
-// 			}
-// 		}
-// 	}()
+		})
+	}
+}
 
-// 	// create a temporary file for e2e testing
-// 	f, err := os.CreateTemp(".", "*.sqlite3")
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	closers = append(closers, func() {
-// 		f.Close()
-// 		os.Remove(f.Name())
-// 	})
+func setupDB(t *testing.T) (db *sql.DB, closers []func(), e error) {
+	t.Helper()
 
-// 	// set up tables
-// 	db, err = sql.Open("sqlite3", f.Name())
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	closers = append(closers, func() {
-// 		db.Close()
-// 	})
+	defer func() {
+		if e != nil {
+			for _, c := range closers {
+				c()
+			}
+		}
+	}()
 
-// 	// TODO: replace it with real SQL statements.
-// 	cmd := `CREATE TABLE IF NOT EXISTS items (
-// 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-// 		name VARCHAR(255),
-// 		category VARCHAR(255)
-// 	)`
-// 	_, err = db.Exec(cmd)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
+	// create a temporary file for e2e testing
+	f, err := os.CreateTemp(".", "*.sqlite3")
+	if err != nil {
+		return nil, nil, err
+	}
+	closers = append(closers, func() {
+		f.Close()
+		os.Remove(f.Name())
+	})
 
-// 	return db, closers, nil
-// }
+	// set up tables
+	db, err = sql.Open("sqlite3", f.Name())
+	if err != nil {
+		return nil, nil, err
+	}
+	closers = append(closers, func() {
+		db.Close()
+	})
+
+	// TODO: replace it with real SQL statements.
+	// `CREATE TABLE` 文の実行
+	cmd := `
+	CREATE TABLE IF NOT EXISTS categories (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE
+	);
+
+	CREATE TABLE IF NOT EXISTS items (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		category_id INTEGER NOT NULL,
+		image_name TEXT NOT NULL,
+		FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
+	);`
+
+	_, err = db.Exec(cmd)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return db, closers, nil
+}
