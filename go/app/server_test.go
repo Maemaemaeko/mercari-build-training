@@ -26,13 +26,13 @@ func TestParseAddItemRequest(t *testing.T) {
 	}{
 		"ok: valid request": {
 			args: map[string]string{
-				"name":     "", // fill here
-				"category": "", // fill here
+				"name":     "Sample_Item", // fill here
+				"category": "Sample_Category", // fill here
 			},
 			wants: wants{
 				req: &AddItemRequest{
-					Name: "", // fill here
-					// Category: "", // fill here
+					Name: "Sample_Item", // fill here
+					Category: "Sample_Category", // fill here
 				},
 				err: false,
 			},

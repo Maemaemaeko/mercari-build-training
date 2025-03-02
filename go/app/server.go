@@ -115,7 +115,8 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	// `image` フィールドを取得
 	file, _, err := r.FormFile("image")
 	if err != nil {
-		return nil, errors.New("image is required")
+		req.Image = nil
+		return req, nil
 	}
 	defer file.Close()
 
