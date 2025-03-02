@@ -141,24 +141,32 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
+	var item *Item
 	// STEP 4-4: uncomment on adding an implementation to store an image
-	filename, err := s.storeImage(req.Image)
-	if err != nil {
-		slog.Error("failed to store image: ", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+	if req.Image != nil {
+		filename, err := s.storeImage(req.Image)
+		if err != nil {
+			slog.Error("failed to store image: ", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	
-	item := &Item{
-		Name: req.Name,
-		// STEP 4-2: add a category field
-		Category: req.Category,
-		// STEP 4-4: add an image field
-		ImagePath: filename,
+		item = &Item{
+			Name: req.Name,
+			// STEP 4-2: add a category field
+			Category: req.Category,
+			// STEP 4-4: add an image field
+			ImagePath: filename,
+		}
+	} else {
+		item = &Item{
+			Name: req.Name,
+			Category: req.Category,
+			ImagePath: "",
+		}
 	}
-	message := fmt.Sprintf("item received: %s", item.Name)
+	
+	message := fmt.Sprintf("item received: %s belongs to %s", item.Name, item.Category)
 	slog.Info(message)
 
 	// STEP 4-2: add an implementation to store an image

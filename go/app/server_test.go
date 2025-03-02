@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
@@ -138,6 +139,12 @@ func TestAddItem(t *testing.T) {
 			injector: func(m *MockItemRepository) {
 				// STEP 6-3: define mock expectation
 				// succeeded to insert
+				item := &Item{
+					Name: "used iPhone 16e",
+					// STEP 4-2: add a category field
+					Category: "phone",
+				}
+				m.EXPECT().Insert(gomock.Any(), item).Return(nil)
 			},
 			wants: wants{
 				code: http.StatusOK,
@@ -151,6 +158,11 @@ func TestAddItem(t *testing.T) {
 			injector: func(m *MockItemRepository) {
 				// STEP 6-3: define mock expectation
 				// failed to insert
+				item := &Item{
+					Name: "used iPhone 16e",
+					Category: "phone",
+				}
+				m.EXPECT().Insert(gomock.Any(), item).Return(errors.New("failed to insert"))
 			},
 			wants: wants{
 				code: http.StatusInternalServerError,

@@ -11,6 +11,7 @@ import (
 	// "strconv"
 	"database/sql"
 	"os"
+	// "fmt"
 	
 
 	// STEP 5-1: uncomment this line
@@ -75,13 +76,13 @@ func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	var categoryID int
 	err = tx.QueryRow("SELECT id FROM categories WHERE name = ?", item.Category).Scan(&categoryID)
 	if err == sql.ErrNoRows {
-		// 🔹 カテゴリが存在しない場合、新しく追加
+		// カテゴリが存在しない場合、新しく追加
 		result, err := tx.Exec("INSERT INTO categories (name) VALUES (?)", item.Category)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
-		// 🔹 新しく作成した `category_id` を取得
+		// 新しく作成した `category_id` を取得
 		categoryID64, err := result.LastInsertId()
 		if err != nil {
 			tx.Rollback()
