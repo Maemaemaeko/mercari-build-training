@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"encoding/json"
 
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
@@ -85,14 +86,14 @@ func TestHelloHandler(t *testing.T) {
 
 	// Please comment out for STEP 6-2
 	// predefine what we want
-	// type wants struct {
-	// 	code int               // desired HTTP status code
-	// 	body map[string]string // desired body
-	// }
-	// want := wants{
-	// 	code: http.StatusOK,
-	// 	body: map[string]string{"message": "Hello, world!"},
-	// }
+	type wants struct {
+		code int               // desired HTTP status code
+		body map[string]string // desired body
+	}
+	want := wants{
+		code: http.StatusOK,
+		body: map[string]string{"message": "Hello, world!"},
+	}
 
 	// set up test
 	req := httptest.NewRequest("GET", "/hello", nil)
@@ -102,9 +103,21 @@ func TestHelloHandler(t *testing.T) {
 	h.Hello(res, req)
 
 	// STEP 6-2: confirm the status code
+	if res.Code != want.code{
+		t.Errorf("expected status code %d, got %d", want.code, res.Code)
+	}
 
-	// STEP 6-2: confirm response body
+    // STEP 6-2: confirm response body
+    var response HelloResponse
+    if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+        t.Fatalf("failed to decode response: %v", err)
+    }
+
+    if response.Message != want.body["message"] {
+        t.Errorf("expected response body %v, got %v", want.body["message"], response.Message)
+    }
 }
+
 
 func TestAddItem(t *testing.T) {
 	t.Parallel()
