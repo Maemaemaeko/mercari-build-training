@@ -8,12 +8,14 @@ import (
 	"io/ioutil"
 	// "log"
 	"encoding/json"
+	"strconv"
 
 	// STEP 5-1: uncomment this line
 	// _ "github.com/mattn/go-sqlite3"
 )
 
 var errImageNotFound = errors.New("image not found")
+var errItemNotFound = errors.New("item not found")
 
 type Item struct {
 	ID   int    `db:"id" json:"-"`
@@ -29,6 +31,7 @@ type Item struct {
 type ItemRepository interface {
 	Insert(ctx context.Context, item *Item) error
 	GetItems(ctx context.Context) ([]byte, error)
+	GetItem(ctx context.Context, id string) (*Item, error)
 }
 
 // itemRepository is an implementation of ItemRepository
@@ -110,6 +113,36 @@ func (i *itemRepository) GetItems(ctx context.Context) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// GetItem returns an item from the repository.
+func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) {
+	// STEP 4-1: add an implementation to get an item
+
+	// JSONファイル読み込み
+	bytes, err := ioutil.ReadFile(i.fileName)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+	}
+
+	var data Items
+	if err := json.Unmarshal(bytes, &data); err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
+	}
+
+	// IDを数値に変換
+	id_int, err := strconv.Atoi(id)
+	if err != nil {
+		fmt.Println("Error converting id to int:", err)
+	}
+
+	// IDが範囲内か確認
+	if id_int < 0 || id_int >= len(data.Items) {
+		fmt.Println("Error: ID out of range")
+		return nil, errItemNotFound
+	}
+	
+	return &data.Items[id_int], nil
 }
 
 // StoreImage stores an image and returns an error if any.

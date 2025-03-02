@@ -47,6 +47,7 @@ func (s Server) Run() int {
 	mux.HandleFunc("GET /", h.Hello)
 	mux.HandleFunc("POST /items", h.AddItem)
 	mux.HandleFunc("GET /items", h.GetItems) // 4-3: add a new route
+	mux.HandleFunc("GET /items/{id}", h.GetItem) // 4-5: add a new route
 	mux.HandleFunc("GET /images/{filename}", h.GetImage)
 
 	// start the server
@@ -127,20 +128,7 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	return req, nil
 }
 
-// GetItems is a handler to return a list of items for GET /items .
-func (s *Handlers) GetItems(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 
-	item_bytes, err := s.itemRepo.GetItems(ctx)
-	if err != nil {
-		slog.Error("failed to get items: ", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(item_bytes)
-
-}
 
 // AddItem is a handler to add a new item for POST /items .
 func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
@@ -220,6 +208,64 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	// 5. 保存したファイルのパスを返す
 	return filePath, nil
 }
+
+// GetItems is a handler to return a list of items for GET /items .
+func (s *Handlers) GetItems(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	item_bytes, err := s.itemRepo.GetItems(ctx)
+	if err != nil {
+		slog.Error("failed to get items: ", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(item_bytes)
+
+}
+
+type GetItemRequest struct {
+	ID string // path value
+}
+
+//  parGetItemRequest parses and validates the request to get an item.
+func parseGetItemRequest(r *http.Request) (*GetItemRequest, error) {
+	req := &GetItemRequest{
+		ID: r.PathValue("id"),
+	}
+
+	// validate the request
+	if req.ID == "" {
+		return nil, errors.New("id is required")
+	}
+
+	return req, nil
+}
+
+// GetItem is a handler to return an item for GET /items/{id} . (4-5)
+func (s *Handlers) GetItem(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := parseGetItemRequest(r)
+	if err != nil {
+		slog.Error("failed to parse get item request: ", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	item, err := s.itemRepo.GetItem(ctx, req.ID)
+	if err != nil {
+		slog.Error("failed to get item: ", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(item); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+}
+
 
 type GetImageRequest struct {
 	FileName string // path value
