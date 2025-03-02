@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	// "os"
-	"fmt"
-	"io/ioutil"
+	// "fmt"
+	// "io/ioutil"
 	// "log"
 	"encoding/json"
-	"strconv"
+	// "strconv"
 	"database/sql"
 	"os"
 	
@@ -66,25 +66,54 @@ type Items struct {
 // Insert inserts an item into the repository.
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	// STEP 4-1: add an implementation to store an item
-	// sqlite3にデータを挿入
-	_, err := i.db.Exec("INSERT INTO items (name, category, image_name) VALUES (?, ?, ?)", item.Name, item.Category, item.ImagePath)
+	// sqlite3にデータを挿入する
+	tx, err := i.db.Begin()
 	if err != nil {
-		fmt.Println("Error reading file:", err)
+		return err
 	}
 
-
-
-	fmt.Println("Item successfully inserted")
-
-	return nil
+	var categoryID int
+	err = tx.QueryRow("SELECT id FROM categories WHERE name = ?", item.Category).Scan(&categoryID)
+	if err == sql.ErrNoRows {
+		// 🔹 カテゴリが存在しない場合、新しく追加
+		result, err := tx.Exec("INSERT INTO categories (name) VALUES (?)", item.Category)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		// 🔹 新しく作成した `category_id` を取得
+		categoryID64, err := result.LastInsertId()
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		categoryID = int(categoryID64)
+	} else if err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// `items` テーブルにデータを追加（カテゴリIDが確定）
+	_, err = tx.Exec("INSERT INTO items (name, category_id, image_name) VALUES (?, ?, ?)", item.Name, categoryID, item.ImagePath)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	return tx.Commit()
 }
 
 // GetItems returns a list of items from the repository.
 func (i *itemRepository) GetItems(ctx context.Context) ([]byte, error) {
-	// 5-1 sqlite3からデータを取得
-	rows, err := i.db.Query("SELECT * FROM items")
+	// 5-3 
+	query := `
+	SELECT items.id, items.name, categories.name AS category, items.image_name
+	FROM items 
+	INNER JOIN categories ON items.category_id = categories.id
+`
+	rows, err := i.db.Query(query)
 	if err != nil {
-		fmt.Println("Error reading file:", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -93,7 +122,7 @@ func (i *itemRepository) GetItems(ctx context.Context) ([]byte, error) {
 		var item Item
 		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.ImagePath)
 		if err != nil {
-			fmt.Println("Error reading file:", err)
+			return nil, err
 		}
 		items = append(items, item)
 	}
@@ -112,38 +141,43 @@ func (i *itemRepository) GetItems(ctx context.Context) ([]byte, error) {
 // GetItem returns an item from the repository.
 func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) {
 	// STEP 4-1: add an implementation to get an item
+	// SQLクエリの作成
+	query := `
+	SELECT items.id, items.name, categories.name AS category, items.image_name
+	FROM items
+	INNER JOIN categories ON items.category_id = categories.id
+	WHERE items.id = ?
+	`
+	// データ取得用の `Item` 構造体
+	var item Item
 
-	// JSONファイル読み込み
-	bytes, err := ioutil.ReadFile(i.fileName)
+	// `QueryRowContext` を使って 1 件のデータを取得
+	err := i.db.QueryRowContext(ctx, query, id).Scan(&item.ID, &item.Name, &item.Category, &item.ImagePath)
 	if err != nil {
-		fmt.Println("Error reading file:", err)
+		if err == sql.ErrNoRows {
+			// 指定された `id` の商品が見つからなかった場合
+			return nil, errItemNotFound
+		}
+		// それ以外のエラー
+		return nil, err
 	}
 
-	var data Items
-	if err := json.Unmarshal(bytes, &data); err != nil {
-		fmt.Println("Error unmarshaling JSON:", err)
-	}
-
-	// IDを数値に変換
-	id_int, err := strconv.Atoi(id)
-	if err != nil {
-		fmt.Println("Error converting id to int:", err)
-	}
-
-	// IDが範囲内か確認
-	if id_int < 0 || id_int >= len(data.Items) {
-		fmt.Println("Error: ID out of range")
-		return nil, errItemNotFound
-	}
-
-	return &data.Items[id_int], nil
+	// `Item` を返す
+	return &item, nil
 }
+
 
 // SearchItems returns a list of items that match the query from the repository.
 func (i *itemRepository) SearchItems(ctx context.Context, keyword string) ([]byte, error) {
 
 	// SQLクエリの作成
-	query := "SELECT name, category FROM items WHERE name LIKE ?"
+	// query := "SELECT name, category, image_name FROM items WHERE name LIKE ?"
+	query := `
+	SELECT items.id, items.name, categories.name AS category, items.image_name
+	FROM items
+	INNER JOIN categories ON items.category_id = categories.id
+	WHERE items.name LIKE ?
+	`
 
 	// ワイルドカード検索のため `%` を付ける
 	rows, err := i.db.Query(query, "%"+keyword+"%")
@@ -155,7 +189,7 @@ func (i *itemRepository) SearchItems(ctx context.Context, keyword string) ([]byt
 	var items []Item
 	for rows.Next() {
 		var item Item
-		err := rows.Scan(&item.Name, &item.Category)
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.ImagePath)
 		if err != nil {
 			return nil, err
 		}
