@@ -35,6 +35,7 @@ type ItemRepository interface {
 	Insert(ctx context.Context, item *Item) error
 	GetItems(ctx context.Context) ([]byte, error)
 	GetItem(ctx context.Context, id string) (*Item, error)
+	SearchItems(ctx context.Context, keyword string) ([]byte, error)
 }
 
 // itemRepository is an implementation of ItemRepository
@@ -137,6 +138,40 @@ func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) 
 
 	return &data.Items[id_int], nil
 }
+
+// SearchItems returns a list of items that match the query from the repository.
+func (i *itemRepository) SearchItems(ctx context.Context, keyword string) ([]byte, error) {
+
+	// SQLクエリの作成
+	query := "SELECT name, category FROM items WHERE name LIKE ?"
+
+	// ワイルドカード検索のため `%` を付ける
+	rows, err := i.db.Query(query, "%"+keyword+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []Item
+	for rows.Next() {
+		var item Item
+		err := rows.Scan(&item.Name, &item.Category)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	// JSON にエンコード
+	response := Items{Items: items}
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonData, nil
+}
+
 
 // StoreImage stores an image and returns an error if any.
 // This package doesn't have a related interface for simplicity.

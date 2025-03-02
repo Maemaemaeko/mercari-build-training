@@ -49,6 +49,8 @@ func (s Server) Run() int {
 	mux.HandleFunc("GET /items/{id}", h.GetItem) // 4-5: add a new route
 	mux.HandleFunc("GET /images/{filename}", h.GetImage)
 
+	mux.HandleFunc("GET /search", h.SearchItems) // 5-2 add a new rote for search
+
 	// start the server
 	slog.Info("http server started on", "port", s.Port)
 	err := http.ListenAndServe(":"+s.Port, simpleCORSMiddleware(simpleLoggerMiddleware(mux), frontURL, []string{"GET", "HEAD", "POST", "OPTIONS"}))
@@ -335,4 +337,28 @@ func (s *Handlers) buildImagePath(imageFileName string) (string, error) {
 	}
 
 	return imgPath, nil
+}
+
+
+// SearchItems is a handler to return a list of items for GET /search .
+func (s *Handlers) SearchItems(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// STEP 5-2: parse the search query
+	keyword := r.URL.Query().Get("keyword")
+	if keyword == "" {
+		http.Error(w, "keyword is required", http.StatusBadRequest)
+		return
+	}
+
+	// STEP 5-2: search items
+	item_bytes, err := s.itemRepo.SearchItems(ctx, keyword)
+	if err != nil {
+		slog.Error("failed to search items: ", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(item_bytes)
 }
