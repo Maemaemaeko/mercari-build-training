@@ -9,6 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"io"
+	"crypto/sha256"
+	"encoding/hex"
 )
 
 type Server struct {
@@ -92,7 +95,7 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	req := &AddItemRequest{
 		Name: r.FormValue("name"),
 		Category: r.FormValue("category"),
-		
+		Image: []byte(r.FormValue("image")),
 	}
 
 	// STEP 4-4: add an image field
@@ -107,6 +110,20 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 		return nil, errors.New("category is required")
 	}
 	// STEP 4-4: validate the image field
+	// `image` フィールドを取得
+	file, _, err := r.FormFile("image")
+	if err != nil {
+		return nil, errors.New("image is required")
+	}
+	defer file.Close()
+
+	// 画像データをバイト配列に変換
+	imageBytes, err := io.ReadAll(file)
+	if err != nil {
+		return nil, errors.New("failed to read image file")
+	}
+	req.Image = imageBytes
+
 	return req, nil
 }
 
@@ -136,18 +153,20 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// STEP 4-4: uncomment on adding an implementation to store an image
-	// fileName, err := s.storeImage(req.Image)
-	// if err != nil {
-	// 	slog.Error("failed to store image: ", "error", err)
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
+	filename, err := s.storeImage(req.Image)
+	if err != nil {
+		slog.Error("failed to store image: ", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
+	
 	item := &Item{
 		Name: req.Name,
 		// STEP 4-2: add a category field
 		Category: req.Category,
 		// STEP 4-4: add an image field
+		ImagePath: filename,
 	}
 	message := fmt.Sprintf("item received: %s", item.Name)
 	slog.Info(message)
@@ -172,15 +191,34 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 // this method calculates the hash sum of the image as a file name to avoid the duplication of a same file
 // and stores it in the image directory.
 func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
-	// STEP 4-4: add an implementation to store an image
-	// TODO:
-	// - calc hash sum
-	// - build image file path
-	// - check if the image already exists
-	// - store image
-	// - return the image file path
+	// 1. ハッシュを計算（SHA-256）
+	hash := sha256.Sum256(image)
+	hashString := hex.EncodeToString(hash[:]) // 16進数の文字列に変換
 
-	return
+	// 2. ファイルの保存パスを決定
+	imageDir := "images"
+	if err := os.MkdirAll(imageDir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("failed to create image directory: %w", err)
+	}
+
+	filePath = filepath.Join(imageDir, hashString+".jpg")
+
+	// 3. 同じハッシュの画像が既に存在するかチェック
+	if _, err := os.Stat(filePath); err == nil {
+		// 既に同じ画像がある場合はそのパスを返す
+		return filePath, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		// その他のエラーがあればエラーを返す
+		return "", fmt.Errorf("failed to check image existence: %w", err)
+	}
+
+	// 4. 画像を保存
+	if err := os.WriteFile(filePath, image, 0644); err != nil {
+		return "", fmt.Errorf("failed to save image: %w", err)
+	}
+
+	// 5. 保存したファイルのパスを返す
+	return filePath, nil
 }
 
 type GetImageRequest struct {
