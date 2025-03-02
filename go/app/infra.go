@@ -9,9 +9,12 @@ import (
 	// "log"
 	"encoding/json"
 	"strconv"
+	"database/sql"
+	"os"
+	
 
 	// STEP 5-1: uncomment this line
-	// _ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // SQLite ドライバを import
 )
 
 var errImageNotFound = errors.New("image not found")
@@ -38,11 +41,19 @@ type ItemRepository interface {
 type itemRepository struct {
 	// fileName is the path to the JSON file storing items.
 	fileName string
+	// db is the database connection.
+	db *sql.DB
 }
 
 // NewItemRepository creates a new itemRepository.
-func NewItemRepository() ItemRepository {
-	return &itemRepository{fileName: "items.json"}
+func NewItemRepository(dbPath string) (ItemRepository) {
+	// データベースに接続
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil
+	}
+
+	return &itemRepository{fileName: "items.json", db: db}
 }
 
 // Items 構造体（JSON全体を表す）
@@ -54,48 +65,13 @@ type Items struct {
 // Insert inserts an item into the repository.
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	// STEP 4-1: add an implementation to store an item
-	// fmt.Printf("Inserting item: %+v\n", item)
-	// fmt.Printf("Inserting item_name: %+v\n", item.Name)
-	
-
-    // JSONファイル読み込み
-    bytes, err := ioutil.ReadFile(i.fileName)
-    if err != nil {
-		fmt.Println("Error reading file:", err)
-    }	
-	// fmt.Printf("読み込んだデータ: %s\n", bytes)
-	var data Items
-	if err := json.Unmarshal(bytes, &data); err != nil {
-		fmt.Println("Error unmarshaling JSON:", err)
-	}
-	// fmt.Printf("デコード後のデータ: %+v\n", data)
-
-	// デコードしたデータを表示
-	// for _, item := range data.Items {
-	// 	fmt.Printf("%s %s\n",item.Name, item.Category)
-	// }
-
-	// **ID を要素数に応じて設定**
-	item.ID = len(data.Items)
-	fmt.Printf("ID: %d\n", item.ID)
-
-	// itemをdataに追加
-	data.Items = append(data.Items, *item)
-	// fmt.Printf("追加後のデータ: %+v\n", data)
-
-	// JSONにエンコード
-	// bytes, err = json.Marshal(data)
-	bytes, err = json.MarshalIndent(data, "", "  ")
+	// sqlite3にデータを挿入
+	_, err := i.db.Exec("INSERT INTO items (name, category, image_name) VALUES (?, ?, ?)", item.Name, item.Category, item.ImagePath)
 	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		return err
+		fmt.Println("Error reading file:", err)
 	}
 
-	// JSONファイルに書き込み
-	if err := ioutil.WriteFile(i.fileName, bytes, 0644); err != nil {
-		fmt.Println("Error writing file:", err)
-		return err
-	}
+
 
 	fmt.Println("Item successfully inserted")
 
@@ -104,16 +80,33 @@ func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 
 // GetItems returns a list of items from the repository.
 func (i *itemRepository) GetItems(ctx context.Context) ([]byte, error) {
-	// STEP 4-1: add an implementation to get items
-
-	// JSONファイル読み込み
-	bytes, err := ioutil.ReadFile(i.fileName)
+	// 5-1 sqlite3からデータを取得
+	rows, err := i.db.Query("SELECT * FROM items")
 	if err != nil {
 		fmt.Println("Error reading file:", err)
 	}
+	defer rows.Close()
 
-	return bytes, nil
+	var items []Item
+	for rows.Next(){
+		var item Item
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.ImagePath)
+		if err != nil {
+			fmt.Println("Error reading file:", err)
+		}
+		items = append(items, item)
+	}
+
+	// JSON にエンコード
+	response := Items{Items: items}
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonData, nil
 }
+
 
 // GetItem returns an item from the repository.
 func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) {
@@ -141,7 +134,7 @@ func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) 
 		fmt.Println("Error: ID out of range")
 		return nil, errItemNotFound
 	}
-	
+
 	return &data.Items[id_int], nil
 }
 
@@ -149,6 +142,9 @@ func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) 
 // This package doesn't have a related interface for simplicity.
 func StoreImage(fileName string, image []byte) error {
 	// STEP 4-4: add an implementation to store an image
+	if err := os.WriteFile(fileName, image, 0644); err != nil {
+		return err
+	}
 
 	return nil
 }

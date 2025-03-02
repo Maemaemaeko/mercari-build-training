@@ -37,9 +37,8 @@ func (s Server) Run() int {
 	}
 
 	// STEP 5-1: set up the database connection
-
-	// set up handlers
-	itemRepo := NewItemRepository()
+	db_path := "db/mercari.sqlite3"
+	itemRepo := NewItemRepository(db_path)
 	h := &Handlers{imgDirPath: s.ImageDirPath, itemRepo: itemRepo}
 
 	// set up routes
@@ -201,9 +200,11 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	}
 
 	// 4. 画像を保存
-	if err := os.WriteFile(filePath, image, 0644); err != nil {
+	// infra.goで定義したStoreImage(fileName string, image []byte) error {} を使う
+	if err := StoreImage(filePath, image); err != nil {
 		return "", fmt.Errorf("failed to save image: %w", err)
 	}
+
 
 	// 5. 保存したファイルのパスを返す
 	return filePath, nil
