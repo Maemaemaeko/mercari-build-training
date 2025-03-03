@@ -1,17 +1,17 @@
 package app
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"io"
-	"crypto/sha256"
-	"encoding/hex"
 )
 
 type Server struct {
@@ -45,7 +45,7 @@ func (s Server) Run() int {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", h.Hello)
 	mux.HandleFunc("POST /items", h.AddItem)
-	mux.HandleFunc("GET /items", h.GetItems) // 4-3: add a new route
+	mux.HandleFunc("GET /items", h.GetItems)     // 4-3: add a new route
 	mux.HandleFunc("GET /items/{id}", h.GetItem) // 4-5: add a new route
 	mux.HandleFunc("GET /images/{filename}", h.GetImage)
 
@@ -83,9 +83,9 @@ func (s *Handlers) Hello(w http.ResponseWriter, r *http.Request) {
 }
 
 type AddItemRequest struct {
-	Name string `form:"name"`
+	Name     string `form:"name"`
 	Category string `form:"category"` // STEP 4-2: add a category field
-	Image []byte `form:"image"` // STEP 4-4: add an image field
+	Image    []byte `form:"image"`    // STEP 4-4: add an image field
 }
 
 type AddItemResponse struct {
@@ -95,9 +95,9 @@ type AddItemResponse struct {
 // parseAddItemRequest parses and validates the request to add an item.
 func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	req := &AddItemRequest{
-		Name: r.FormValue("name"),
+		Name:     r.FormValue("name"),
 		Category: r.FormValue("category"),
-		Image: []byte(r.FormValue("image")),
+		Image:    []byte(r.FormValue("image")),
 	}
 
 	// STEP 4-4: add an image field
@@ -130,8 +130,6 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	return req, nil
 }
 
-
-
 // AddItem is a handler to add a new item for POST /items .
 func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -156,16 +154,15 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 			// STEP 4-2: add a category field
 			Category: req.Category,
 			// STEP 4-4: add an image field
-			ImagePath: filename,
+			ImageName: filename,
 		}
 	} else {
 		item = &Item{
 			Name: req.Name,
 			Category: req.Category,
-			ImagePath: "",
+			ImageName: "",
 		}
 	}
-	
 	message := fmt.Sprintf("item received: %s belongs to %s", item.Name, item.Category)
 	slog.Info(message)
 
@@ -216,7 +213,6 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 		return "", fmt.Errorf("failed to save image: %w", err)
 	}
 
-
 	// 5. 保存したファイルのパスを返す
 	return filePath, nil
 }
@@ -225,14 +221,17 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 func (s *Handlers) GetItems(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	item_bytes, err := s.itemRepo.GetItems(ctx)
+	items, err := s.itemRepo.GetItems(ctx)
 	if err != nil {
 		slog.Error("failed to get items: ", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(item_bytes)
+
+	if err := json.NewEncoder(w).Encode(items); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 }
 
@@ -240,7 +239,7 @@ type GetItemRequest struct {
 	ID string // path value
 }
 
-//  parGetItemRequest parses and validates the request to get an item.
+// parGetItemRequest parses and validates the request to get an item.
 func parseGetItemRequest(r *http.Request) (*GetItemRequest, error) {
 	req := &GetItemRequest{
 		ID: r.PathValue("id"),
@@ -273,11 +272,10 @@ func (s *Handlers) GetItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(item); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
-
 
 type GetImageRequest struct {
 	FileName string // path value
@@ -348,7 +346,6 @@ func (s *Handlers) buildImagePath(imageFileName string) (string, error) {
 	return imgPath, nil
 }
 
-
 // SearchItems is a handler to return a list of items for GET /search .
 func (s *Handlers) SearchItems(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -361,13 +358,16 @@ func (s *Handlers) SearchItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// STEP 5-2: search items
-	item_bytes, err := s.itemRepo.SearchItems(ctx, keyword)
+	items, err := s.itemRepo.SearchItems(ctx, keyword)
 	if err != nil {
-		slog.Error("failed to search items: ", "error", err)
+		slog.Error("failed to get items: ", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(item_bytes)
+	if err := json.NewEncoder(w).Encode(items); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 }
