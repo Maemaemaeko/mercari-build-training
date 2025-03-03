@@ -56,10 +56,10 @@ func (mr *MockItemRepositoryMockRecorder) GetItem(ctx, id any) *gomock.Call {
 }
 
 // GetItems mocks base method.
-func (m *MockItemRepository) GetItems(ctx context.Context) ([]byte, error) {
+func (m *MockItemRepository) GetItems(ctx context.Context) (*Items, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetItems", ctx)
-	ret0, _ := ret[0].([]byte)
+	ret0, _ := ret[0].(*Items)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -85,10 +85,10 @@ func (mr *MockItemRepositoryMockRecorder) Insert(ctx, item any) *gomock.Call {
 }
 
 // SearchItems mocks base method.
-func (m *MockItemRepository) SearchItems(ctx context.Context, keyword string) ([]byte, error) {
+func (m *MockItemRepository) SearchItems(ctx context.Context, keyword string) (*Items, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchItems", ctx, keyword)
-	ret0, _ := ret[0].([]byte)
+	ret0, _ := ret[0].(*Items)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

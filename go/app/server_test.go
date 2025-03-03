@@ -1,15 +1,15 @@
 package app
 
 import (
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
-	"encoding/json"
-	"errors"
-	"database/sql"
-	"os"
 
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
@@ -30,12 +30,12 @@ func TestParseAddItemRequest(t *testing.T) {
 	}{
 		"ok: valid request": {
 			args: map[string]string{
-				"name":     "Sample_Item", // fill here
+				"name":     "Sample_Item",     // fill here
 				"category": "Sample_Category", // fill here
 			},
 			wants: wants{
 				req: &AddItemRequest{
-					Name: "Sample_Item", // fill here
+					Name:     "Sample_Item",     // fill here
 					Category: "Sample_Category", // fill here
 				},
 				err: false,
@@ -106,21 +106,20 @@ func TestHelloHandler(t *testing.T) {
 	h.Hello(res, req)
 
 	// STEP 6-2: confirm the status code
-	if res.Code != want.code{
+	if res.Code != want.code {
 		t.Errorf("expected status code %d, got %d", want.code, res.Code)
 	}
 
-    // STEP 6-2: confirm response body
-    var response HelloResponse
-    if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-        t.Fatalf("failed to decode response: %v", err)
-    }
+	// STEP 6-2: confirm response body
+	var response HelloResponse
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 
-    if response.Message != want.body["message"] {
-        t.Errorf("expected response body %v, got %v", want.body["message"], response.Message)
-    }
+	if response.Message != want.body["message"] {
+		t.Errorf("expected response body %v, got %v", want.body["message"], response.Message)
+	}
 }
-
 
 func TestAddItem(t *testing.T) {
 	t.Parallel()
@@ -161,7 +160,7 @@ func TestAddItem(t *testing.T) {
 				// STEP 6-3: define mock expectation
 				// failed to insert
 				item := &Item{
-					Name: "used iPhone 16e",
+					Name:     "used iPhone 16e",
 					Category: "phone",
 				}
 				m.EXPECT().Insert(gomock.Any(), item).Return(errors.New("failed to insert"))
@@ -281,6 +280,9 @@ func TestAddItemE2e(t *testing.T) {
 			// STEP 6-4: check inserted data
 			// check the inserted data
 			tx, err := db.Begin()
+			if err != nil {
+				t.Fatalf("failed to begin transaction: %v", err)
+			}
 
 			// データ取得用の `Item` 構造体
 			var item Item
@@ -290,7 +292,7 @@ func TestAddItemE2e(t *testing.T) {
 				INNER JOIN categories ON items.category_id = categories.id
 				ORDER BY items.id DESC
 				LIMIT 1
-			`).Scan(&item.ID, &item.Name, &item.Category, &item.ImagePath)
+			`).Scan(&item.ID, &item.Name, &item.Category, &item.ImageName)
 			if err != nil {
 				t.Fatalf("failed to query inserted item: %v", err)
 			}
