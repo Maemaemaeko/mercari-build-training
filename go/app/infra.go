@@ -2,14 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	// "os"
 	"fmt"
 	"io/ioutil"
-	// "log"
-	"encoding/json"
+	"os"
 	"strconv"
-
 	// STEP 5-1: uncomment this line
 	// _ "github.com/mattn/go-sqlite3"
 )
@@ -18,10 +16,15 @@ var errImageNotFound = errors.New("image not found")
 var errItemNotFound = errors.New("item not found")
 
 type Item struct {
-	ID   int    `db:"id" json:"-"`
-	Name string `db:"name" json:"name"`
-	Category string `db:"category" json:"category"`
-	ImagePath string `db:"image" json:"image"`
+	ID        int    `db:"id" json:"-"`
+	Name      string `db:"name" json:"name"`
+	Category  string `db:"category" json:"category"`
+	ImageName string `db:"image_name" json:"image_name"`
+}
+
+// Items 構造体（JSON全体を表す）
+type Items struct {
+	Items []Item `json:"items"`
 }
 
 // Please run `go generate ./...` to generate the mock implementation
@@ -30,7 +33,7 @@ type Item struct {
 //go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=${GOPACKAGE} -destination=./mock_$GOFILE
 type ItemRepository interface {
 	Insert(ctx context.Context, item *Item) error
-	GetItems(ctx context.Context) ([]byte, error)
+	GetItems(ctx context.Context) (*Items, error)
 	GetItem(ctx context.Context, id string) (*Item, error)
 }
 
@@ -45,54 +48,43 @@ func NewItemRepository() ItemRepository {
 	return &itemRepository{fileName: "items.json"}
 }
 
-// Items 構造体（JSON全体を表す）
-type Items struct {
-	Items []Item `json:"items"`
-}
-
-
 // Insert inserts an item into the repository.
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	// STEP 4-1: add an implementation to store an item
-	// fmt.Printf("Inserting item: %+v\n", item)
-	// fmt.Printf("Inserting item_name: %+v\n", item.Name)
-	
 
-    // JSONファイル読み込み
-    bytes, err := ioutil.ReadFile(i.fileName)
-    if err != nil {
+	// JSONファイル読み込み
+	file, err := os.Open(i.fileName)
+	if err != nil {
 		fmt.Println("Error reading file:", err)
-    }	
-	// fmt.Printf("読み込んだデータ: %s\n", bytes)
-	var data Items
-	if err := json.Unmarshal(bytes, &data); err != nil {
-		fmt.Println("Error unmarshaling JSON:", err)
-	}
-	// fmt.Printf("デコード後のデータ: %+v\n", data)
+		return err
 
-	// デコードしたデータを表示
-	// for _, item := range data.Items {
-	// 	fmt.Printf("%s %s\n",item.Name, item.Category)
-	// }
+	}
+	defer file.Close()
+
+	// JSONデコーダを作成
+	decoder := json.NewDecoder(file)
+
+	// JSONデータを構造体にデコード
+	var data Items
+	if err := decoder.Decode(&data); err != nil {
+		fmt.Println("Error decoding JSON:", err)
+	}
 
 	// **ID を要素数に応じて設定**
 	item.ID = len(data.Items)
-	fmt.Printf("ID: %d\n", item.ID)
 
 	// itemをdataに追加
 	data.Items = append(data.Items, *item)
-	// fmt.Printf("追加後のデータ: %+v\n", data)
-
 	// JSONにエンコード
-	// bytes, err = json.Marshal(data)
-	bytes, err = json.MarshalIndent(data, "", "  ")
+	jsonData, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
 		return err
 	}
 
 	// JSONファイルに書き込み
-	if err := ioutil.WriteFile(i.fileName, bytes, 0644); err != nil {
+	err = os.WriteFile(i.fileName, jsonData, 0644)
+	if err != nil {
 		fmt.Println("Error writing file:", err)
 		return err
 	}
@@ -103,16 +95,29 @@ func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 }
 
 // GetItems returns a list of items from the repository.
-func (i *itemRepository) GetItems(ctx context.Context) ([]byte, error) {
+func (i *itemRepository) GetItems(ctx context.Context) (*Items, error) {
 	// STEP 4-1: add an implementation to get items
 
 	// JSONファイル読み込み
-	bytes, err := ioutil.ReadFile(i.fileName)
+	file, err := os.Open(i.fileName)
 	if err != nil {
 		fmt.Println("Error reading file:", err)
+		return nil, err
+
+	}
+	defer file.Close()
+
+	// JSONデコーダを作成
+	decoder := json.NewDecoder(file)
+
+	// JSONデータを構造体にデコード
+	var data Items
+	if err := decoder.Decode(&data); err != nil {
+		fmt.Println("Error decoding JSON:", err)
+		return nil, err
 	}
 
-	return bytes, nil
+	return &data, nil
 }
 
 // GetItem returns an item from the repository.
@@ -141,7 +146,7 @@ func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) 
 		fmt.Println("Error: ID out of range")
 		return nil, errItemNotFound
 	}
-	
+
 	return &data.Items[id_int], nil
 }
 
