@@ -51,6 +51,9 @@ type itemRepository struct {
 func NewItemRepository(dbPath string) (ItemRepository) {
 	// データベースに接続
 	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil
+	}
 	// table が存在しない場合は作成
 	// `CREATE TABLE` 文の実行
 	cmd := `
