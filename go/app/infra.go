@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 	"database/sql"
-	"os"
 	"errors"
+	"os"
 
 	// STEP 5-1: uncomment this line
 	_ "github.com/mattn/go-sqlite3" // SQLite ドライバを import
@@ -82,7 +82,15 @@ func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 		tx.Rollback()
 		return err
 	}
-	return nil
+
+	// `items` テーブルにデータを追加（カテゴリIDが確定）
+	_, err = tx.Exec("INSERT INTO items (name, category_id, image_name) VALUES (?, ?, ?)", item.Name, categoryID, item.ImageName)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // GetItems returns a list of items from the repository.

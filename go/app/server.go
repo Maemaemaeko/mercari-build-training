@@ -139,7 +139,10 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var item *Item
+	item := &Item{
+		Name:     req.Name,
+		Category: req.Category,
+	}
 	// STEP 4-4: uncomment on adding an implementation to store an image
 	if req.Image != nil {
 		filename, err := s.storeImage(req.Image)
@@ -148,20 +151,8 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	
-		item = &Item{
-			Name: req.Name,
-			// STEP 4-2: add a category field
-			Category: req.Category,
-			// STEP 4-4: add an image field
-			ImageName: filename,
-		}
-	} else {
-		item = &Item{
-			Name: req.Name,
-			Category: req.Category,
-			ImageName: "",
-		}
+
+		item.ImageName = filename
 	}
 	message := fmt.Sprintf("item received: %s belongs to %s", item.Name, item.Category)
 	slog.Info(message)
