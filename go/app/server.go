@@ -40,7 +40,6 @@ func (s Server) Run() int {
 	db_path := "db/mercari.sqlite3"
 	itemRepo := NewItemRepository(db_path)
 	// 接続できない場合はエラーを出力して終了する
-	// 接続できない理由を出力する
 	if itemRepo == nil {
 		fmt.Println("failed to connect to the database")
 	} else {
