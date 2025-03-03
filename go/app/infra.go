@@ -51,6 +51,24 @@ type itemRepository struct {
 func NewItemRepository(dbPath string) (ItemRepository) {
 	// データベースに接続
 	db, err := sql.Open("sqlite3", dbPath)
+	// table が存在しない場合は作成
+	// `CREATE TABLE` 文の実行
+	cmd := `
+	CREATE TABLE IF NOT EXISTS categories (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE
+	);
+
+	CREATE TABLE IF NOT EXISTS items (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		category_id INTEGER NOT NULL,
+		image_name TEXT NOT NULL,
+		FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
+	);`
+
+	_, err = db.Exec(cmd)
+		
 	if err != nil {
 		return nil
 	}
