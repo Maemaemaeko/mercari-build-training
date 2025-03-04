@@ -2,13 +2,13 @@ package app
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
+
 	// STEP 5-1: uncomment this line
-	// _ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var errImageNotFound = errors.New("image not found")
@@ -34,89 +34,162 @@ type ItemRepository interface {
 	Insert(ctx context.Context, item *Item) error
 	GetItems(ctx context.Context) (*Items, error)
 	GetItem(ctx context.Context, id string) (*Item, error)
+	SearchItems(ctx context.Context, keyword string) (*Items, error)
 }
 
 // itemRepository is an implementation of ItemRepository
 type itemRepository struct {
-	// fileName is the path to the JSON file storing items.
-	fileName string
+	db *sql.DB
 }
 
 // NewItemRepository creates a new itemRepository.
-func NewItemRepository() ItemRepository {
-	return &itemRepository{fileName: "items.json"}
+func NewItemRepository(dbPath string) ItemRepository {
+	// データベースに接続
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		fmt.Println("Error opening database:", err)
+		return nil
+	}
+	// テーブル作成
+	cmd := `
+	CREATE TABLE IF NOT EXISTS categories (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE
+	);
+
+	CREATE TABLE IF NOT EXISTS items (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		category_id INTEGER NOT NULL,
+		image_name TEXT NOT NULL,
+		FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
+	);`
+
+	_, err = db.Exec(cmd)
+
+	if err != nil {
+		return nil
+	}
+
+	return &itemRepository{db: db}
 }
 
 // Insert inserts an item into the repository.
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
-	// STEP 4-1: add an implementation to store an item
-
-	// JSONファイルを読み込み、Items構造体に変換
-	data, err := loadItemsFromFile(i.fileName)
+	// STEP 5-1 Insert an item into the database
+	// Set up a transaction to ensure the consistency of the data
+	tx, err := i.db.Begin()
 	if err != nil {
 		return err
 	}
-
-	// **ID を要素数に応じて設定**
-	item.ID = len(data.Items)
-
-	// itemをdataに追加
-	data.Items = append(data.Items, *item)
-	// JSONにエンコード
-	jsonData, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
+	var categoryID int
+	err = tx.QueryRow("SELECT id FROM categories WHERE name = ?", item.Category).Scan(&categoryID)
+	if err == sql.ErrNoRows {
+		// カテゴリが存在しない場合、新しく作成
+		result, err := tx.Exec("INSERT INTO categories (name) VALUES (?)", item.Category)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		// 新しく作成した `category_id` を取得
+		categoryID64, err := result.LastInsertId()
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		categoryID = int(categoryID64)
+	} else if err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	// JSONファイルに書き込み
-	err = os.WriteFile(i.fileName, jsonData, 0644)
+	// `items` テーブルにデータを追加（カテゴリIDが確定）
+	_, err = tx.Exec("INSERT INTO items (name, category_id, image_name) VALUES (?, ?, ?)", item.Name, categoryID, item.ImageName)
 	if err != nil {
-		fmt.Println("Error writing file:", err)
+		tx.Rollback()
 		return err
 	}
 
-	fmt.Println("Item successfully inserted")
-
-	return nil
+	return tx.Commit()
 }
 
 // GetItems returns a list of items from the repository.
 func (i *itemRepository) GetItems(ctx context.Context) (*Items, error) {
-	// STEP 4-1: add an implementation to get items
-
-	// JSONファイル読み込み、Items構造体に変換
-	data, err := loadItemsFromFile(i.fileName)
+	// STEP 5-1, 5-3: Get items from the database
+	query := `
+	SELECT items.id, items.name, categories.name AS category, items.image_name
+	FROM items 
+	INNER JOIN categories ON items.category_id = categories.id
+`
+	rows, err := i.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	return data, nil
+	var items Items
+	for rows.Next() {
+		var item Item
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.ImageName)
+		if err != nil {
+			return nil, err
+		}
+		items.Items = append(items.Items, item)
+	}
+	return &items, nil
 }
 
 // GetItem returns an item from the repository.
 func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) {
-	// STEP 4-1: add an implementation to get an item
+	// STEP 5-1, 5-3: (Optional) Get a single item from the database
+	query := `
+	SELECT items.id, items.name, categories.name AS category, items.image_name
+	FROM items
+	INNER JOIN categories ON items.category_id = categories.id
+	WHERE items.id = ?
+	`
 
-	// JSONファイル読み込み、Items構造体に変換
-	data, err := loadItemsFromFile(i.fileName)
+	var item Item
+
+	err := i.db.QueryRowContext(ctx, query, id).Scan(&item.ID, &item.Name, &item.Category, &item.ImageName)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errItemNotFound
+		}
 		return nil, err
 	}
 
-	// IDを数値に変換
-	id_int, err := strconv.Atoi(id)
+	return &item, nil
+}
+
+// SearchItems returns a list of items that match the query from the repository.
+func (i *itemRepository) SearchItems(ctx context.Context, keyword string) (*Items, error) {
+	// STEP 5-2: Search items from the database using a keyword
+	query := `
+	SELECT items.id, items.name, categories.name AS category, items.image_name
+	FROM items
+	INNER JOIN categories ON items.category_id = categories.id
+	WHERE items.name LIKE ?
+	`
+	fmt.Println("keyword", keyword)
+	// Add % to the keyword to search for partial matches
+	rows, err := i.db.Query(query, "%"+keyword+"%")
 	if err != nil {
-		fmt.Println("Error converting id to int:", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items Items
+	for rows.Next() {
+		var item Item
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.ImageName)
+		if err != nil {
+			return nil, err
+		}
+		items.Items = append(items.Items, item)
 	}
 
-	// IDが範囲内か確認
-	if id_int < 0 || id_int >= len(data.Items) {
-		fmt.Println("Error: ID out of range")
-		return nil, errItemNotFound
-	}
-
-	return &data.Items[id_int], nil
+	return &items, nil
 }
 
 // StoreImage stores an image and returns an error if any.
@@ -127,39 +200,4 @@ func StoreImage(fileName string, image []byte) error {
 		return err
 	}
 	return nil
-}
-
-// LoadItemsFromFile load items from a JSON file.
-func loadItemsFromFile(fileName string) (*Items, error) {
-	// JSONファイル読み込み
-	file, err := os.Open(fileName)
-	if err != nil {
-		fmt.Println("Error reading file:", err)
-		return nil, err
-	}
-	defer file.Close()
-	var data Items
-
-	// ファイルサイズを確認
-	fileInfo, err := file.Stat()
-	if err != nil {
-		fmt.Println("Error getting file info:", err)
-		return nil, err
-	}
-
-	// ファイルが空の場合、新しいItemsを作成
-	if fileInfo.Size() == 0 {
-		fmt.Println("Error: file is empty, creating new Items")
-		return &Items{Items: []Item{}}, nil
-	}
-
-	// JSONデコーダを作成
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&data); err != nil {
-		fmt.Println("Error decoding JSON:", err)
-		return nil, err
-	}
-
-	return &data, nil
-
 }
