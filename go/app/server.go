@@ -188,9 +188,9 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	// 2. 画像の保存先パスを生成
 	filePath = filepath.Join(s.imgDirPath, fileName)
 
-	// 3. 同じパス(ハッシュ)の画像がすでに存在するのかをチェックする
-	if _, err := os.Stat(filePath); err == nil {
-		return filePath, nil
+	// 3. 同じハッシュの画像がすでに存在するのかをチェックする
+	if _, err := os.Stat(fileName); err == nil {
+		return fileName, nil
 	}
 
 	// 4. 画像を保存
@@ -199,7 +199,7 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	}
 
 	// 5. 保存したファイルのパスを返す
-	return filePath, nil
+	return fileName, nil
 }
 
 // GetItems is a handler to return a list of items for GET /items .

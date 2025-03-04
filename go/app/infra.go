@@ -51,7 +51,7 @@ func NewItemRepository() ItemRepository {
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	// STEP 4-1: add an implementation to store an item
 
-	// JSONファイル読み込み、Items構造体に変換
+	// JSONファイルを読み込み、Items構造体に変換
 	data, err := loadItemsFromFile(i.fileName)
 	if err != nil {
 		return err
@@ -139,6 +139,19 @@ func loadItemsFromFile(fileName string) (*Items, error) {
 	}
 	defer file.Close()
 	var data Items
+
+	// ファイルサイズを確認
+	fileInfo, err := file.Stat()
+	if err != nil {
+		fmt.Println("Error getting file info:", err)
+		return nil, err
+	}
+
+	// ファイルが空の場合、新しいItemsを作成
+	if fileInfo.Size() == 0 {
+		fmt.Println("Error: file is empty, creating new Items")
+		return &Items{Items: []Item{}}, nil
+	}
 
 	// JSONデコーダを作成
 	decoder := json.NewDecoder(file)
