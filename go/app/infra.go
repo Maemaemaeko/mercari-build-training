@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	// STEP 5-1: uncomment this line
@@ -52,22 +51,10 @@ func NewItemRepository() ItemRepository {
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	// STEP 4-1: add an implementation to store an item
 
-	// JSONファイル読み込み
-	file, err := os.Open(i.fileName)
+	// JSONファイル読み込み、Items構造体に変換
+	data, err := loadItemsFromFile(i.fileName)
 	if err != nil {
-		fmt.Println("Error reading file:", err)
 		return err
-
-	}
-	defer file.Close()
-
-	// JSONデコーダを作成
-	decoder := json.NewDecoder(file)
-
-	// JSONデータを構造体にデコード
-	var data Items
-	if err := decoder.Decode(&data); err != nil {
-		fmt.Println("Error decoding JSON:", err)
 	}
 
 	// **ID を要素数に応じて設定**
@@ -98,41 +85,23 @@ func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 func (i *itemRepository) GetItems(ctx context.Context) (*Items, error) {
 	// STEP 4-1: add an implementation to get items
 
-	// JSONファイル読み込み
-	file, err := os.Open(i.fileName)
+	// JSONファイル読み込み、Items構造体に変換
+	data, err := loadItemsFromFile(i.fileName)
 	if err != nil {
-		fmt.Println("Error reading file:", err)
-		return nil, err
-
-	}
-	defer file.Close()
-
-	// JSONデコーダを作成
-	decoder := json.NewDecoder(file)
-
-	// JSONデータを構造体にデコード
-	var data Items
-	if err := decoder.Decode(&data); err != nil {
-		fmt.Println("Error decoding JSON:", err)
 		return nil, err
 	}
 
-	return &data, nil
+	return data, nil
 }
 
 // GetItem returns an item from the repository.
 func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) {
 	// STEP 4-1: add an implementation to get an item
 
-	// JSONファイル読み込み
-	bytes, err := ioutil.ReadFile(i.fileName)
+	// JSONファイル読み込み、Items構造体に変換
+	data, err := loadItemsFromFile(i.fileName)
 	if err != nil {
-		fmt.Println("Error reading file:", err)
-	}
-
-	var data Items
-	if err := json.Unmarshal(bytes, &data); err != nil {
-		fmt.Println("Error unmarshaling JSON:", err)
+		return nil, err
 	}
 
 	// IDを数値に変換
@@ -154,6 +123,30 @@ func (i *itemRepository) GetItem(ctx context.Context, id string) (*Item, error) 
 // This package doesn't have a related interface for simplicity.
 func StoreImage(fileName string, image []byte) error {
 	// STEP 4-4: add an implementation to store an image
-
+	if err := os.WriteFile(fileName, image, 0644); err != nil {
+		return err
+	}
 	return nil
+}
+
+// LoadItemsFromFile load items from a JSON file.
+func loadItemsFromFile(fileName string) (*Items, error) {
+	// JSONファイル読み込み
+	file, err := os.Open(fileName)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return nil, err
+	}
+	defer file.Close()
+	var data Items
+
+	// JSONデコーダを作成
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&data); err != nil {
+		fmt.Println("Error decoding JSON:", err)
+		return nil, err
+	}
+
+	return &data, nil
+
 }

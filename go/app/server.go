@@ -180,13 +180,7 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	hash := sha256.Sum256(image)
 	hashString := hex.EncodeToString(hash[:]) // 16進数の文字列に変換
 
-	// 2. ファイルの保存パスを決定
-	imageDir := "images"
-	if err := os.MkdirAll(imageDir, os.ModePerm); err != nil {
-		return "", fmt.Errorf("failed to create image directory: %w", err)
-	}
-
-	filePath = filepath.Join(imageDir, hashString+".jpg")
+	filePath = filepath.Join(hashString + ".jpg")
 
 	// 3. 同じハッシュの画像が既に存在するかチェック
 	if _, err := os.Stat(filePath); err == nil {
