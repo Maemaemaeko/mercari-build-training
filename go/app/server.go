@@ -180,20 +180,22 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	hash := sha256.Sum256(image)
 	hashString := hex.EncodeToString(hash[:]) // 16進数の文字列に変換
 
-	filePath = filepath.Join(hashString + ".jpg")
+	fileName := filepath.Join(hashString + ".jpg")
+	if err := os.MkdirAll(s.imgDirPath, os.ModePerm); err != nil {
+		return "", err
+	}
 
-	// 3. 同じハッシュの画像が既に存在するかチェック
+	// 2. 画像の保存先パスを生成
+	filePath = filepath.Join(s.imgDirPath, fileName)
+
+	// 3. 同じパス(ハッシュ)の画像がすでに存在するのかをチェックする
 	if _, err := os.Stat(filePath); err == nil {
-		// 既に同じ画像がある場合はそのパスを返す
 		return filePath, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		// その他のエラーがあればエラーを返す
-		return "", fmt.Errorf("failed to check image existence: %w", err)
 	}
 
 	// 4. 画像を保存
-	if err := os.WriteFile(filePath, image, 0644); err != nil {
-		return "", fmt.Errorf("failed to save image: %w", err)
+	if err := StoreImage(filePath, image); err != nil {
+		return "", err
 	}
 
 	// 5. 保存したファイルのパスを返す
