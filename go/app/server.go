@@ -192,7 +192,7 @@ func (s *Handlers) storeImage(image []byte) (filePath string, err error) {
 	filePath = filepath.Join(s.imgDirPath, fileName)
 
 	// 3. 同じハッシュの画像がすでに存在するのかをチェックする
-	if _, err := os.Stat(fileName); err == nil {
+	if _, err := os.Stat(filePath); err == nil {
 		return fileName, nil
 	}
 
