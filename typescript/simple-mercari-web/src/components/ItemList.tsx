@@ -3,6 +3,16 @@ import { Item, fetchItems } from '~/api';
 
 const PLACEHOLDER_IMAGE = import.meta.env.VITE_FRONTEND_URL + '/logo192.png';
 
+
+// Get image URL
+const getImageURL = (imageName: string) => {
+  // if there is no image, return placeholder image
+  if (!imageName) {
+    return PLACEHOLDER_IMAGE;
+  }
+  return import.meta.env.VITE_BACKEND_URL + '/images/' + imageName;
+}
+
 interface Prop {
   reload: boolean;
   onLoadCompleted: () => void;
@@ -34,7 +44,10 @@ export const ItemList = ({ reload, onLoadCompleted }: Prop) => {
         return (
           <div key={item.id} className="ItemList">
             {/* TODO: Task 2: Show item images */}
-            <img src={PLACEHOLDER_IMAGE} />
+            <img 
+              src={getImageURL(item.image_name)}
+              className="Image" 
+            />
             <p>
               <span>Name: {item.name}</span>
               <br />
