@@ -25,6 +25,7 @@ export const ItemList = ({ reload, onLoadCompleted }: Prop) => {
       fetchItems()
         .then((data) => {
           console.debug('GET success:', data);
+          console.debug('Items data structure:', JSON.stringify(data.items[0])); // 最初のアイテムの構造を表示
           setItems(data.items);
           onLoadCompleted();
         })
@@ -49,7 +50,9 @@ export const ItemList = ({ reload, onLoadCompleted }: Prop) => {
               className="Image" 
             />
             <p>
-              <span>Name: {item.name}</span>
+              <span>
+                Name: <a href={import.meta.env.VITE_BACKEND_URL + '/items/' + item.id} className="App-link">{item.name}</a>
+              </span>
               <br />
               <span>Category: {item.category}</span>
             </p>
