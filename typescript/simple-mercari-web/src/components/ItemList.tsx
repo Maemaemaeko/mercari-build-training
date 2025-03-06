@@ -48,6 +48,7 @@ export const ItemList = ({ reload, onLoadCompleted }: Prop) => {
             <img 
               src={getImageURL(item.image_name)}
               className="Image" 
+              alt="item image"
             />
             <p>
               <span>
