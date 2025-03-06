@@ -118,8 +118,11 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	// STEP 4-4: validate the image field
 	// `image` フィールドを取得
 	file, _, err := r.FormFile("image")
+	// image is optional
 	if err != nil {
-		return nil, errors.New("image is required")
+		slog.Info("failed to get image file: ", "error", err)
+		req.Image = nil
+		return req, nil
 	}
 	defer file.Close()
 
@@ -144,11 +147,17 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// STEP 4-4: uncomment on adding an implementation to store an image
-	filename, err := s.storeImage(req.Image)
-	if err != nil {
-		slog.Error("failed to store image: ", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	var filename string
+	if len(req.Image) > 0 {
+		var err error
+		filename, err = s.storeImage(req.Image)
+		if err != nil {
+			slog.Error("failed to store image: ", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		filename = ""
 	}
 
 	item := &Item{
@@ -158,7 +167,7 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 		// STEP 4-4: add an image field
 		ImageName: filename,
 	}
-	message := fmt.Sprintf("item received: %s", item.Name)
+	message := fmt.Sprintf("item received: %s, category: %s", item.Name, item.Category)
 	slog.Info(message)
 
 	// STEP 4-2: add an implementation to store an image
