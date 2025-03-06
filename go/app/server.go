@@ -157,7 +157,7 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		filename = "default.jpg"
+		filename = ""
 	}
 
 	item := &Item{
@@ -167,7 +167,7 @@ func (s *Handlers) AddItem(w http.ResponseWriter, r *http.Request) {
 		// STEP 4-4: add an image field
 		ImageName: filename,
 	}
-	message := fmt.Sprintf("item received: %s", item.Name)
+	message := fmt.Sprintf("item received: %s, category: %s", item.Name, item.Category)
 	slog.Info(message)
 
 	// STEP 4-2: add an implementation to store an image
