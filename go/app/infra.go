@@ -35,6 +35,7 @@ type ItemRepository interface {
 	GetItems(ctx context.Context) (*Items, error)
 	GetItem(ctx context.Context, id string) (*Item, error)
 	SearchItems(ctx context.Context, keyword string) (*Items, error)
+	CloseDB() error
 }
 
 // itemRepository is an implementation of ItemRepository
@@ -74,43 +75,44 @@ func NewItemRepository(dbPath string) ItemRepository {
 	return &itemRepository{db: db}
 }
 
+func (i *itemRepository) getCategoryIDFromDB(ctx context.Context, category string) (int, error) {
+	var categoryID int
+	err := i.db.QueryRow("SELECT id FROM categories WHERE name = ?", category).Scan(&categoryID)
+	if err == sql.ErrNoRows {
+		return i.insertCategoryInDB(ctx, category)
+	}
+	return categoryID, nil
+}
+
+func (i *itemRepository) insertCategoryInDB(ctx context.Context, category string) (int, error) {
+	result, err := i.db.Exec("INSERT INTO categories (name) VALUES (?)", category)
+	if err != nil {
+		return 0, err
+	}
+	categoryID64, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return int(categoryID64), nil
+}
+
 // Insert inserts an item into the repository.
 func (i *itemRepository) Insert(ctx context.Context, item *Item) error {
 	// STEP 5-1 Insert an item into the database
 	// Set up a transaction to ensure the consistency of the data
-	tx, err := i.db.Begin()
-	if err != nil {
-		return err
-	}
 	var categoryID int
-	err = tx.QueryRow("SELECT id FROM categories WHERE name = ?", item.Category).Scan(&categoryID)
-	if err == sql.ErrNoRows {
-		// カテゴリが存在しない場合、新しく作成
-		result, err := tx.Exec("INSERT INTO categories (name) VALUES (?)", item.Category)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-		// 新しく作成した `category_id` を取得
-		categoryID64, err := result.LastInsertId()
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-		categoryID = int(categoryID64)
-	} else if err != nil {
-		tx.Rollback()
+	categoryID, err := i.getCategoryIDFromDB(ctx, item.Category)
+	if err != nil {
 		return err
 	}
 
 	// `items` テーブルにデータを追加（カテゴリIDが確定）
-	_, err = tx.Exec("INSERT INTO items (name, category_id, image_name) VALUES (?, ?, ?)", item.Name, categoryID, item.ImageName)
+	_, err = i.db.Exec("INSERT INTO items (name, category_id, image_name) VALUES (?, ?, ?)", item.Name, categoryID, item.ImageName)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 // GetItems returns a list of items from the repository.
@@ -200,4 +202,10 @@ func StoreImage(fileName string, image []byte) error {
 		return err
 	}
 	return nil
+}
+
+// CloseDB closes the database connection.
+func (i *itemRepository) CloseDB() error {
+	// STEP 5-1: Close the database connection
+	return i.db.Close()
 }

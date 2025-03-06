@@ -41,6 +41,8 @@ func (s Server) Run() int {
 	// STEP 5-1: set up the database connection
 	// set up handlers
 	itemRepo := NewItemRepository(s.DBPath)
+	// close the database connection when the server stops
+	defer itemRepo.CloseDB()
 	h := &Handlers{imgDirPath: s.ImageDirPath, itemRepo: itemRepo}
 
 	// set up routes
