@@ -121,6 +121,7 @@ func parseAddItemRequest(r *http.Request) (*AddItemRequest, error) {
 	// image is optional
 	if err != nil {
 		slog.Info("failed to get image file: ", "error", err)
+		req.Image = nil
 		return req, nil
 	}
 	defer file.Close()
