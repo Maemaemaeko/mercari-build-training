@@ -279,6 +279,27 @@ func TestAddItemE2e(t *testing.T) {
 			}
 
 			// STEP 6-4: check inserted data
+			tx, err := db.Begin()
+			if err != nil {
+				t.Fatalf("failed to begin transaction: %v", err)
+			}
+
+			var item Item
+			err = tx.QueryRow(`
+				SELECT items.id, items.name, categories.name AS category, items.image_name
+				FROM items 
+				INNER JOIN categories ON items.category_id = categories.id
+				ORDER BY items.id DESC
+				LIMIT 1
+			`).Scan(&item.ID, &item.Name, &item.Category, &item.ImageName)
+			if err != nil {
+				t.Fatalf("failed to query inserted item: %v", err)
+			}
+			if item.Name != tt.args["name"] || item.Category != tt.args["category"] {
+				t.Errorf("expected item (name: %s, category: %s), got (name: %s, category: %s)", tt.args["name"], tt.args["category"], item.Name, item.Category)
+			}
+			tx.Commit()
+
 		})
 	}
 }
