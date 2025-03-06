@@ -1,8 +1,19 @@
-FROM alpine
+FROM golang:1.24.0-alpine3.20
 
-RUN addgroup -S mercari && adduser -S trainee -G mercari
-# RUN chown -R trainee:mercari /path/to/db
+ENV CGO_ENABLED=1
+
+RUN apk add --no-cache gcc musl-dev sqlite
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+# ユーザー・グループの作成と権限設定
+RUN addgroup -S mercari && adduser -S trainee -G mercari \
+    && chown -R trainee:mercari db 
 
 USER trainee
 
-CMD ["go", "version"]
+CMD ["go", "run", "cmd/api/main.go"]
