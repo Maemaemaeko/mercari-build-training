@@ -19,6 +19,8 @@ type Server struct {
 	Port string
 	// ImageDirPath is the path to the directory storing images.
 	ImageDirPath string
+	// DBPath is the path to the SQLite database file.
+	DBPath string
 }
 
 // Run is a method to start the server.
@@ -37,9 +39,10 @@ func (s Server) Run() int {
 	}
 
 	// STEP 5-1: set up the database connection
-
 	// set up handlers
-	itemRepo := NewItemRepository()
+	itemRepo := NewItemRepository(s.DBPath)
+	// close the database connection when the server stops
+	defer itemRepo.CloseDB()
 	h := &Handlers{imgDirPath: s.ImageDirPath, itemRepo: itemRepo}
 
 	// set up routes
@@ -49,6 +52,8 @@ func (s Server) Run() int {
 	mux.HandleFunc("GET /items", h.GetItems)     // 4-3: add a new route
 	mux.HandleFunc("GET /items/{id}", h.GetItem) // 4-5: add a new route
 	mux.HandleFunc("GET /images/{filename}", h.GetImage)
+
+	mux.HandleFunc("GET /search", h.SearchItems) // 5-2 add a new rote for search
 
 	// start the server
 	slog.Info("http server started on", "port", s.Port)
@@ -329,4 +334,30 @@ func (s *Handlers) buildImagePath(imageFileName string) (string, error) {
 	}
 
 	return imgPath, nil
+}
+
+// SearchItems is a handler to return a list of items for GET /search .
+func (s *Handlers) SearchItems(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// STEP 5-2: parse the search query
+	keyword := r.URL.Query().Get("keyword")
+	if keyword == "" {
+		http.Error(w, "keyword is required", http.StatusBadRequest)
+		return
+	}
+
+	// STEP 5-2: search items
+	items, err := s.itemRepo.SearchItems(ctx, keyword)
+	if err != nil {
+		slog.Error("failed to get items: ", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(items); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 }
