@@ -39,7 +39,7 @@ export const ItemList = ({ reload, onLoadCompleted }: Prop) => {
   }, [reload, onLoadCompleted]);
 
   return (
-    <div>
+    <div className="ItemGrid">
       {items.map((item) => {
         return (
           <div key={item.id} className="ItemList">
