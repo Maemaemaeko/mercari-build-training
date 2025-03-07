@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  web:
+    build:
+      context: ./typescript/simple-mercari-web
+      dockerfile: Dockerfile
+    container_name: web-container
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+  app:
+    build:
+      context: ./go
+      dockerfile: Dockerfile
+    container_name: app-container
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./go/db:/app/db
+      - ./go/images:/app/images
+    
+
