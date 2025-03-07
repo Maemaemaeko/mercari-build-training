@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  app:
+    image: mercari-build-training/app
+    container_name: mercari-app-container
+    ports:
+      - "9000:9000"
+    volumes:
+      - sqlite-data:/app
+  web:
+    image: build2024/web:latest
+    container_name: build2024-web-container
+    ports:
+      - "3000:3000"
+
+volumes:
+  sqlite-data:
