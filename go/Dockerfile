@@ -9,10 +9,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY --chown=trainee:mercari . .
+# COPY --chown=trainee:mercari . .
+COPY . .
 RUN addgroup -S mercari && adduser -S trainee -G mercari \
     && chown -R trainee:mercari db images 
-    # && chmod -R 770 db images
 
 USER trainee
 
