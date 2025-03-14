@@ -14,6 +14,6 @@ COPY . .
 RUN addgroup -S mercari && adduser -S trainee -G mercari \
     && chown -R trainee:mercari db images
 
-USER trainee
+USER root
 
 CMD ["go", "run", "cmd/api/main.go"]
