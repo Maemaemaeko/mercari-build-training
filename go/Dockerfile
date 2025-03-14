@@ -12,8 +12,9 @@ RUN go mod download
 COPY . .
 # ユーザー・グループの作成と権限設定
 RUN addgroup -S mercari && adduser -S trainee -G mercari \
-    && chown -R trainee:mercari db images
+    && chown -R trainee:mercari db \
+    && chown -R trainee:mercari db 
 
-USER root
+USER trainee
 
 CMD ["go", "run", "cmd/api/main.go"]
