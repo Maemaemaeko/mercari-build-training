@@ -9,11 +9,11 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . .
+COPY --chown=trainee:mercari . .
 # ユーザー・グループの作成と権限設定
 RUN addgroup -S mercari && adduser -S trainee -G mercari \
     && chown -R trainee:mercari db 
 
-USER root
+USER trainee
 
 CMD ["go", "run", "cmd/api/main.go"]
