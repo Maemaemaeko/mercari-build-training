@@ -11,8 +11,8 @@ RUN go mod download
 
 COPY --chown=trainee:mercari . .
 RUN addgroup -S mercari && adduser -S trainee -G mercari \
-    && chown -R trainee:mercari db images \ 
-    && chmod -R 770 db images
+    && chown -R trainee:mercari db images 
+    # && chmod -R 770 db images
 
 USER trainee
 
